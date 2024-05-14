@@ -63,7 +63,10 @@ namespace teleop_franka_joy
     float Delta_t = 0.001;  // Tiempo en segundo
     float reaction_t = 0.5; // Tiempo en segundo de reaccion del operador
 
-    geometry_msgs::Twist velocity;
+    double last_commanded_velocity;
+    double last_commanded_acceleration;
+
+    geometry_msgs::Twist velocity_to_command;
 
     ros::Time elapsed_time_;
 
@@ -108,6 +111,10 @@ namespace teleop_franka_joy
 
     nh_param->getParam("linear_max_vel", pimpl_->linear_max_vel);
     nh_param->getParam("angular_max_vel", pimpl_->angular_max_vel);
+
+    // Asignar valores a vbles
+    pimpl_->last_commanded_velocity = 0;
+    pimpl_->last_commanded_acceleration = 0;
   }
 
   void TeleopFrankaJoy::Impl::printTwistInfo(const geometry_msgs::Twist &velocity, const std::string &info_string)
@@ -205,23 +212,23 @@ namespace teleop_franka_joy
     // ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     // ROS_INFO("Espera de Delta_t completada.");
 
-    double velocity_to_command;
-    double max_velocity = 10;
-    double max_acceleration = 10;
-    double max_jerk = 10;
-    double last_commanded_velocity;
-    double last_commanded_acceleration;
+    
 
-    //double commanded_velocity = getVal(joy_msg, axis_linear_map, "x");
-    double commanded_velocity = 1;
-    velocity_to_command = franka::limitRate(max_velocity, max_acceleration, max_jerk, commanded_velocity, last_commanded_velocity, last_commanded_acceleration);
+    // double commanded_velocity = getVal(joy_msg, axis_linear_map, "x");
+    //double commanded_velocity = 1;
+    velocity_to_command.linear.x = franka::limitRate(franka::kMaxTranslationalVelocity,
+                                            franka::kMaxTranslationalAcceleration,
+                                            franka::kMaxTranslationalJerk,
+                                            getVal(joy_msg, axis_linear_map, "x"),
+                                            last_commanded_velocity,
+                                            last_commanded_acceleration);
 
-    ROS_INFO("Vx_limitRate=%.2f", velocity_to_command);
+    last_commanded_velocity = velocity_to_command.linear.x;
+    last_commanded_acceleration = velocity_to_command.linear.x/franka::kDeltaT;
 
-
-    std::array<double, 6> commanded_velocity_after_limitRate();
-
-
+    ROS_INFO("Vx_limitRate=%.6f", velocity_to_command.linear.x);
+    cmd_vel_pub.publish(velocity_to_command);
+    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
   }
 
   void TeleopFrankaJoy::Impl::sendCmdAngularVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_angular_map)
@@ -277,16 +284,20 @@ namespace teleop_franka_joy
       // velocity.linear.x = velocity.linear.x + smooth_increment(velocity_zero.linear.x, 0.0005, 0.01);
       // cmd_vel_pub.publish(velocity); // Se publica el equilibrium_pose cuando no se pulsa ninguna tecla
       // printTwistInfo(velocity, "Velocity set to 0");
+    ROS_INFO("Decelerando");
+    velocity_to_command.linear.x = franka::limitRate(franka::kMaxTranslationalVelocity,
+                                            franka::kMaxTranslationalAcceleration,
+                                            franka::kMaxTranslationalJerk,
+                                            0.0,
+                                            last_commanded_velocity,
+                                            last_commanded_acceleration);
 
-      if (velocity.linear.x > 0)
-      {
-        velocity.linear.x = velocity.linear.x - 0.001;
-      }
-      else if (velocity.linear.x < 0)
-      {
-        velocity.linear.x = 0;
-      }
-      ros::Duration(Delta_t).sleep();
+    last_commanded_velocity = velocity_to_command.linear.x;
+    last_commanded_acceleration = velocity_to_command.linear.x/franka::kDeltaT;
+
+    ROS_INFO("Vx_limitRate=%.6f", velocity_to_command.linear.x);
+    cmd_vel_pub.publish(velocity_to_command);
+    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     }
   }
 

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(joy_franka_vel_control)
 
+# Encuentra la biblioteca Franka
+find_library(LIBFRANKA franka PATHS ~/libfranka)
 
 find_package(catkin REQUIRED COMPONENTS geometry_msgs roscpp sensor_msgs roslaunch)
 
@@ -13,10 +15,10 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME} src/teleop_franka_joy)
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${LIBFRANKA})
 
 add_executable(teleop_franka_vel_node src/teleop_franka_node.cpp)
-target_link_libraries(teleop_franka_vel_node ${PROJECT_NAME} ${catkin_LIBRARIES})
+target_link_libraries(teleop_franka_vel_node ${PROJECT_NAME} ${catkin_LIBRARIES} ${LIBFRANKA})
 set_target_properties(teleop_franka_node
   PROPERTIES OUTPUT_NAME teleop_franka_node PREFIX "")
 
