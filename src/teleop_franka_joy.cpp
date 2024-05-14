@@ -66,7 +66,11 @@ namespace teleop_franka_joy
     double last_commanded_velocity;
     double last_commanded_acceleration;
 
-    geometry_msgs::Twist velocity_to_command;
+    std::array<double, 6> last_O_dP_EE_c;
+    std::array<double, 6> last_O_ddP_EE_c;
+    double kFactor = 1;
+
+    std::array<double, 6> velocity;
 
     ros::Time elapsed_time_;
 
@@ -212,21 +216,29 @@ namespace teleop_franka_joy
     // ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     // ROS_INFO("Espera de Delta_t completada.");
 
+    // double commanded_velocity = getVal(joy_msg, axis_linear_map, "x");
+    // double commanded_velocity = 1;
+
+    const std::array<double, 6> O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x")*kFactor, 0.0, 0.0, 0.0, 0.0, 0.0}};
+
     
 
-    // double commanded_velocity = getVal(joy_msg, axis_linear_map, "x");
-    //double commanded_velocity = 1;
-    velocity_to_command.linear.x = franka::limitRate(franka::kMaxTranslationalVelocity,
-                                            franka::kMaxTranslationalAcceleration,
-                                            franka::kMaxTranslationalJerk,
-                                            getVal(joy_msg, axis_linear_map, "x"),
-                                            last_commanded_velocity,
-                                            last_commanded_acceleration);
+    velocity = franka::limitRate(franka::kMaxTranslationalVelocity*0.01,
+                                 franka::kMaxTranslationalAcceleration,
+                                 franka::kMaxTranslationalJerk * 0.1 * kFactor,
+                                 franka::kMaxRotationalVelocity,
+                                 franka::kMaxRotationalAcceleration,
+                                 franka::kMaxRotationalJerk,
+                                 O_dP_EE_c,
+                                 last_O_dP_EE_c,
+                                 last_O_ddP_EE_c);
 
-    last_commanded_velocity = velocity_to_command.linear.x;
-    last_commanded_acceleration = velocity_to_command.linear.x/franka::kDeltaT;
+    last_O_ddP_EE_c = {{(velocity[0] - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    last_O_dP_EE_c = {{velocity[0], 0.0, 0.0, 0.0, 0.0, 0.0}};
 
-    ROS_INFO("Vx_limitRate=%.6f", velocity_to_command.linear.x);
+    ROS_INFO("Vx_limitRate=%.6f", velocity[0]);
+    geometry_msgs::Twist velocity_to_command;
+    velocity_to_command.linear.x = velocity[0];
     cmd_vel_pub.publish(velocity_to_command);
     ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
   }
@@ -284,20 +296,28 @@ namespace teleop_franka_joy
       // velocity.linear.x = velocity.linear.x + smooth_increment(velocity_zero.linear.x, 0.0005, 0.01);
       // cmd_vel_pub.publish(velocity); // Se publica el equilibrium_pose cuando no se pulsa ninguna tecla
       // printTwistInfo(velocity, "Velocity set to 0");
-    ROS_INFO("Decelerando");
-    velocity_to_command.linear.x = franka::limitRate(franka::kMaxTranslationalVelocity,
-                                            franka::kMaxTranslationalAcceleration,
-                                            franka::kMaxTranslationalJerk,
-                                            0.0,
-                                            last_commanded_velocity,
-                                            last_commanded_acceleration);
 
-    last_commanded_velocity = velocity_to_command.linear.x;
-    last_commanded_acceleration = velocity_to_command.linear.x/franka::kDeltaT;
+      
 
-    ROS_INFO("Vx_limitRate=%.6f", velocity_to_command.linear.x);
-    cmd_vel_pub.publish(velocity_to_command);
-    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
+      const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+      velocity = franka::limitRate(franka::kMaxTranslationalVelocity * 0.01,
+                                   franka::kMaxTranslationalAcceleration,
+                                   franka::kMaxTranslationalJerk * 0.1 * kFactor,
+                                   franka::kMaxRotationalVelocity,
+                                   franka::kMaxRotationalAcceleration,
+                                   franka::kMaxRotationalJerk,
+                                   O_dP_EE_c,
+                                   last_O_dP_EE_c,
+                                   last_O_ddP_EE_c);
+
+      last_O_ddP_EE_c = {{(velocity[0] - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
+      last_O_dP_EE_c = {{velocity[0], 0.0, 0.0, 0.0, 0.0, 0.0}};
+
+      ROS_INFO("Vx_limitRate=%.6f", velocity[0]);
+      geometry_msgs::Twist velocity_to_command;
+      velocity_to_command.linear.x = velocity[0];
+      cmd_vel_pub.publish(velocity_to_command);
+      ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     }
   }
 
