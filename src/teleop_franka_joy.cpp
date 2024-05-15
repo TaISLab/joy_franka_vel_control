@@ -181,11 +181,10 @@ namespace teleop_franka_joy
     return 0.0;
   }
 
- 
- double firstOrderFilter(double value, double previous_value, double alpha){
+  double firstOrderFilter(double value, double previous_value, double alpha)
+  {
 
-    return alpha * value + (1-alpha) * previous_value;
-
+    return alpha * value + (1 - alpha) * previous_value;
   }
 
   void TeleopFrankaJoy::Impl::sendCmdLinearVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_linear_map)
@@ -303,12 +302,10 @@ namespace teleop_franka_joy
       // cmd_vel_pub.publish(velocity); // Se publica el equilibrium_pose cuando no se pulsa ninguna tecla
       // printTwistInfo(velocity, "Velocity set to 0");
 
-      
-
       const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-      velocity = franka::limitRate(franka::kMaxTranslationalVelocity * 0.015,
+      velocity = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
                                    franka::kMaxTranslationalAcceleration,
-                                   franka::kMaxTranslationalJerk * 0.05,
+                                   franka::kMaxTranslationalJerk * 0.1,
                                    franka::kMaxRotationalVelocity,
                                    franka::kMaxRotationalAcceleration,
                                    franka::kMaxRotationalJerk,
@@ -316,12 +313,14 @@ namespace teleop_franka_joy
                                    last_O_dP_EE_c,
                                    last_O_ddP_EE_c);
 
-      last_O_ddP_EE_c = {{(velocity[0] - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
-      last_O_dP_EE_c = {{velocity[0], 0.0, 0.0, 0.0, 0.0, 0.0}};
+      double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.5);
 
-      ROS_INFO("Vx_limitRate=%.6f", velocity[0]);
+      last_O_ddP_EE_c = {{(vel_vx_filter - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
+      last_O_dP_EE_c = {{vel_vx_filter, 0.0, 0.0, 0.0, 0.0, 0.0}};
+
+      ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
       geometry_msgs::Twist velocity_to_command;
-      velocity_to_command.linear.x = velocity[0];
+      velocity_to_command.linear.x = vel_vx_filter;
       cmd_vel_pub.publish(velocity_to_command);
       ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     }
