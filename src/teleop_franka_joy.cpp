@@ -48,13 +48,8 @@ namespace teleop_franka_joy
   {
     // Members functions
     void printTwistInfo(const geometry_msgs::Twist &velocity, const std::string &info_string);
-    double smooth_increment(double &incremento, const double &limite_inferior, const double &limite_superior);
-
     void joyCallback(const sensor_msgs::Joy::ConstPtr &joy);                                                                // Función encargada de manejar los mensajes del joystick
-    void sendCmdLinearVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_linear_map); // Función encargada de calcular los valores de PoseStamped
-    void sendCmdAngularVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_angular_map);
-    void ModifyVelocity(const sensor_msgs::Joy::ConstPtr &joy_msg, float &scale, float &max_vel); // Función encargada de modificar la velocidad
-    void obtainEquilibriumPose(const franka_msgs::FrankaStateConstPtr &msg);
+    void sendCmdVel();
 
     // ROS subscribers and publisher
     ros::Subscriber joy_sub;
@@ -63,27 +58,18 @@ namespace teleop_franka_joy
     double Delta_t = 0.001; // Tiempo en segundo
     float reaction_t = 0.5; // Tiempo en segundo de reaccion del operador
 
-    double last_commanded_velocity;
-    double last_commanded_acceleration;
+    double alpha_first_order;
+
 
     std::array<double, 6> last_O_dP_EE_c;
     std::array<double, 6> last_O_ddP_EE_c;
 
-    std::array<double, 6> velocity;
+    std::array<double, 6> O_dP_EE_c;
     std::array<double, 6> O_dP_EE_c_limited;
-
-    ros::Time elapsed_time_;
 
     int enable_mov_position;    // Variable que activa el control
     int enable_mov_orientation; // Variable que activa la velocidad orientation
-    int orientation_button;
     int home_button;
-    int increment_vel;
-    int decrement_vel;
-
-    float linear_max_vel;
-    float angular_max_vel; // max_displacement_in_a_second
-    float min_vel = 2;
 
     // Creación de un map de ejes por cada tipo de control:
     std::map<std::string, int> axis_linear_map;  // Control de posicion
@@ -106,24 +92,22 @@ namespace teleop_franka_joy
     // Asignar botones
     nh_param->param<int>("enable_mov_position", pimpl_->enable_mov_position, 0); // Se obtiene el parámetro del enable_mov_position del servidor de parámetros ROS, por defecto es 0.
     nh_param->param<int>("enable_mov_orientation", pimpl_->enable_mov_orientation, -1);
-    nh_param->param<int>("orientation_button", pimpl_->orientation_button, -1); // Antes 8
     nh_param->param<int>("home_button", pimpl_->home_button, -1);
 
     // Asignación de mapas
     nh_param->getParam("axis_linear_map", pimpl_->axis_linear_map);
     nh_param->getParam("axis_angular_map", pimpl_->axis_angular_map);
 
-    nh_param->getParam("linear_max_vel", pimpl_->linear_max_vel);
-    nh_param->getParam("angular_max_vel", pimpl_->angular_max_vel);
-
     // Asignar valores a vbles
-    pimpl_->last_commanded_velocity = 0;
-    pimpl_->last_commanded_acceleration = 0;
+    pimpl_->O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    pimpl_->last_O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    pimpl_->last_O_ddP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+
   }
 
   void TeleopFrankaJoy::Impl::printTwistInfo(const geometry_msgs::Twist &velocity, const std::string &info_string)
   {
-    ROS_INFO("%s - Linear (x, y, z): (%.2f, %.2f, %.2f), Angular (x, y, z, w): (%.2f, %.2f, %.2f)",
+    ROS_INFO("%s - Linear (x, y, z): (%.5f, %.5f, %.5f), Angular (x, y, z, w): (%.5f, %.5f, %.5f)",
              info_string.c_str(),
              velocity.linear.x, velocity.linear.y, velocity.linear.z,
              velocity.angular.x, velocity.angular.y, velocity.angular.z);
@@ -147,39 +131,6 @@ namespace teleop_franka_joy
     }
     ROS_INFO("Entro");
     return joy_msg->axes[axis_map.at(fieldname)];
-  }
-
-  double applyLimits(double value, double min_limit, double max_limit)
-  {
-    // Aplica limites a la velocidad
-    return std::min(std::max(value, min_limit), max_limit);
-  }
-
-  double TeleopFrankaJoy::Impl::smooth_increment(double &incremento, const double &limite_inferior, const double &limite_superior)
-  {
-    ROS_INFO("Entro a smooth increment");
-    if (incremento != 0.0)
-    {
-      if (std::abs(incremento) > limite_superior)
-      {
-        // Aceleración
-        ROS_INFO("Entro a limite superior");
-        return std::copysign(limite_superior, incremento);
-      }
-      else if (std::abs(incremento) < limite_inferior)
-      {
-        // Deceleracion
-        ROS_INFO("Entro a limite inferior");
-        return std::copysign(limite_inferior, incremento);
-      }
-      else
-      {
-        // Fuera de limites
-        ROS_INFO("Asigno incremento %.2f", incremento);
-        return incremento;
-      }
-    }
-    return 0.0;
   }
 
   double firstOrderFilter(double value, double previous_value, double alpha)
@@ -230,81 +181,8 @@ namespace teleop_franka_joy
     return twist;
   }
 
-  void TeleopFrankaJoy::Impl::sendCmdLinearVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_linear_map)
+  void TeleopFrankaJoy::Impl::sendCmdVel()
   {
-
-    const std::array<double, 6> O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"),
-                                              getVal(joy_msg, axis_linear_map, "y"),
-                                              getVal(joy_msg, axis_linear_map, "z"),
-                                              0.0,
-                                              0.0,
-                                              0.0}};
-
-    // Aplico limitRate a la velocidad
-    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration,
-                                          franka::kMaxTranslationalJerk * 0.1,
-                                          franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration,
-                                          franka::kMaxRotationalJerk,
-                                          O_dP_EE_c,
-                                          last_O_dP_EE_c,
-                                          last_O_ddP_EE_c);
-
-    // Aplica el filtro de primer orden
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
-
-    // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
-    last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
-
-    // Almacena la velocidad como velocidad previa para el proximo ciclo
-    last_O_dP_EE_c = O_dP_EE_c_filtered;
-
-    // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
-
-    // Convertir Array en Twist
-    geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
-    cmd_vel_pub.publish(velocity_to_command);
-
-    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
-  }
-
-  void TeleopFrankaJoy::Impl::sendCmdAngularVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_angular_map)
-  {
-    // // ROS usa dos tipos de quaternions que no se peuden mezclar pero si convertir
-    // tf2::Quaternion q_rot;
-    // tf2::Quaternion q_new;
-    // geometry_msgs::Twist velocity;
-
-    // // Calculo de quaternion en funcion de angulos eulerXYZ
-    // double roll = getVal(joy_msg, axis_angular_map, "x");
-    // double pitch = getVal(joy_msg, axis_angular_map, "y");
-    // double yaw = getVal(joy_msg, axis_angular_map, "z");
-    // q_rot.setRPY(roll, pitch, yaw);
-
-    // // Aplicar rotacion
-    // q_rot;
-
-    // // Normalizar
-    // q_rot.normalize();
-
-    // // convertir de tf2 a msg
-    // tf2::convert(q_new, velocity.angular);
-
-    // // Publicar nueva orientacion
-    // cmd_vel_pub.publish(velocity);
-    // printTwistInfo(velocity, "Desired Velocity");
-
-    // // ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
-    // // ROS_INFO("Espera de Delta_t completada.");
-
-    const std::array<double, 6> O_dP_EE_c = {{0.0,
-                                              0.0,
-                                              0.0,
-                                              getVal(joy_msg, axis_linear_map, "x"),
-                                              getVal(joy_msg, axis_linear_map, "y"),
-                                              getVal(joy_msg, axis_linear_map, "z")}};
-
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
                                           franka::kMaxTranslationalAcceleration,
@@ -317,7 +195,7 @@ namespace teleop_franka_joy
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
+    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
 
     // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
     last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
@@ -325,10 +203,9 @@ namespace teleop_franka_joy
     // Almacena la velocidad como velocidad previa para el proximo ciclo
     last_O_dP_EE_c = O_dP_EE_c_filtered;
 
-    // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
-
     // Convertir Array en Twist
     geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
+    printTwistInfo(velocity_to_command, "Velocidad publicada");
     cmd_vel_pub.publish(velocity_to_command);
 
     ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
@@ -352,46 +229,33 @@ namespace teleop_franka_joy
     if (joy_msg->buttons[enable_mov_position]) // Boton derecho
     {
       ROS_INFO("Boton LB pulsado");
-      sendCmdLinearVelMsg(joy_msg, axis_linear_map);
+      alpha_first_order = 0.4;
+      O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"),
+                                                getVal(joy_msg, axis_linear_map, "y"),
+                                                getVal(joy_msg, axis_linear_map, "z"),
+                                                0.0,
+                                                0.0,
+                                                0.0}};
     }
     else if (joy_msg->buttons[enable_mov_orientation]) // Boton izquierdo
     {
       ROS_INFO("Boton RB pulsado");
-      sendCmdAngularVelMsg(joy_msg, axis_angular_map);
+      alpha_first_order = 0.4;
+      O_dP_EE_c = {{0.0,
+                                                0.0,
+                                                0.0,
+                                                getVal(joy_msg, axis_linear_map, "x"),
+                                                getVal(joy_msg, axis_linear_map, "y"),
+                                                getVal(joy_msg, axis_linear_map, "z")}};
     }
     else
-    { // Si no se toca nada
-
-      // deceleracion
-      const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-      // Aplico limitRate a la velocidad
-      O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
-                                            franka::kMaxTranslationalAcceleration,
-                                            franka::kMaxTranslationalJerk * 0.1,
-                                            franka::kMaxRotationalVelocity,
-                                            franka::kMaxRotationalAcceleration,
-                                            franka::kMaxRotationalJerk * 0.1,
-                                            O_dP_EE_c,
-                                            last_O_dP_EE_c,
-                                            last_O_ddP_EE_c);
-
-      // Aplica el filtro de primer orden
-      std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
-
-      // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
-      last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
-
-      // Almacena la velocidad como velocidad previa para el proximo ciclo
-      last_O_dP_EE_c = O_dP_EE_c_filtered;
-
-      // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
-
-      // Convertir Array en Twist
-      geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
-      cmd_vel_pub.publish(velocity_to_command);
-
-      ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
+    { // Si no se toca nada -> Decelera
+      O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+      alpha_first_order = 0.4;
     }
+
+    sendCmdVel();
+
   }
 
 } // namespace teleop_franka_joy
