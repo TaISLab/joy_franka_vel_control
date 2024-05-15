@@ -48,7 +48,7 @@ namespace teleop_franka_joy
   {
     // Members functions
     void printTwistInfo(const geometry_msgs::Twist &velocity, const std::string &info_string);
-    void joyCallback(const sensor_msgs::Joy::ConstPtr &joy);                                                                // Función encargada de manejar los mensajes del joystick
+    void joyCallback(const sensor_msgs::Joy::ConstPtr &joy); // Función encargada de manejar los mensajes del joystick
     void sendCmdVel();
 
     // ROS subscribers and publisher
@@ -59,7 +59,6 @@ namespace teleop_franka_joy
     float reaction_t = 0.5; // Tiempo en segundo de reaccion del operador
 
     double alpha_first_order;
-
 
     std::array<double, 6> last_O_dP_EE_c;
     std::array<double, 6> last_O_ddP_EE_c;
@@ -102,7 +101,6 @@ namespace teleop_franka_joy
     pimpl_->O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     pimpl_->last_O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     pimpl_->last_O_ddP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-
   }
 
   void TeleopFrankaJoy::Impl::printTwistInfo(const geometry_msgs::Twist &velocity, const std::string &info_string)
@@ -184,12 +182,12 @@ namespace teleop_franka_joy
   void TeleopFrankaJoy::Impl::sendCmdVel()
   {
     // Aplico limitRate a la velocidad
-    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration,
-                                          franka::kMaxTranslationalJerk * 0.1,
+    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 1, // limitacion de velocidad
+                                          franka::kMaxTranslationalAcceleration * 0.5,
+                                          franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration,
-                                          franka::kMaxRotationalJerk * 0.1,
+                                          franka::kMaxRotationalAcceleration * 0.5,
+                                          franka::kMaxRotationalJerk * 1,
                                           O_dP_EE_c,
                                           last_O_dP_EE_c,
                                           last_O_ddP_EE_c);
@@ -228,34 +226,35 @@ namespace teleop_franka_joy
     */
     if (joy_msg->buttons[enable_mov_position]) // Boton derecho
     {
+      // Velocidad lineal
       ROS_INFO("Boton LB pulsado");
-      alpha_first_order = 0.4;
+      alpha_first_order = 0.5;
       O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"),
-                                                getVal(joy_msg, axis_linear_map, "y"),
-                                                getVal(joy_msg, axis_linear_map, "z"),
-                                                0.0,
-                                                0.0,
-                                                0.0}};
+                    getVal(joy_msg, axis_linear_map, "y"),
+                    getVal(joy_msg, axis_linear_map, "z"),
+                    0.0,
+                    0.0,
+                    0.0}};
     }
     else if (joy_msg->buttons[enable_mov_orientation]) // Boton izquierdo
     {
+      // Velocidad angular
       ROS_INFO("Boton RB pulsado");
-      alpha_first_order = 0.4;
+      alpha_first_order = 0.5;
       O_dP_EE_c = {{0.0,
-                                                0.0,
-                                                0.0,
-                                                getVal(joy_msg, axis_linear_map, "x"),
-                                                getVal(joy_msg, axis_linear_map, "y"),
-                                                getVal(joy_msg, axis_linear_map, "z")}};
+                    0.0,
+                    0.0,
+                    getVal(joy_msg, axis_linear_map, "x"),
+                    getVal(joy_msg, axis_linear_map, "y"),
+                    getVal(joy_msg, axis_linear_map, "z")}};
     }
     else
-    { // Si no se toca nada -> Decelera
+    { // Si no se toca LB o RB -> Decelera
+      alpha_first_order = 0.7;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-      alpha_first_order = 0.4;
     }
 
     sendCmdVel();
-
   }
 
 } // namespace teleop_franka_joy
