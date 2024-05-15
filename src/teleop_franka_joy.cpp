@@ -182,6 +182,13 @@ namespace teleop_franka_joy
     return 0.0;
   }
 
+ 
+ double firstOrderFilter(double value, double previous_value, double alpha){
+
+    return alpha * value + (1-alpha) * previous_value;
+
+  }
+
   void TeleopFrankaJoy::Impl::sendCmdLinearVelMsg(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_linear_map)
   {
     /*
@@ -225,7 +232,7 @@ namespace teleop_franka_joy
 
     velocity = franka::limitRate(franka::kMaxTranslationalVelocity*0.01,
                                  franka::kMaxTranslationalAcceleration,
-                                 franka::kMaxTranslationalJerk * 0.1 * kFactor,
+                                 franka::kMaxTranslationalJerk * 0.05 * kFactor,
                                  franka::kMaxRotationalVelocity,
                                  franka::kMaxRotationalAcceleration,
                                  franka::kMaxRotationalJerk,
@@ -233,7 +240,9 @@ namespace teleop_franka_joy
                                  last_O_dP_EE_c,
                                  last_O_ddP_EE_c);
 
-    last_O_ddP_EE_c = {{(velocity[0] - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.2);
+
+    last_O_ddP_EE_c = {{(vel_vx_filter - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
     last_O_dP_EE_c = {{velocity[0], 0.0, 0.0, 0.0, 0.0, 0.0}};
 
     ROS_INFO("Vx_limitRate=%.6f", velocity[0]);
@@ -300,9 +309,9 @@ namespace teleop_franka_joy
       
 
       const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-      velocity = franka::limitRate(franka::kMaxTranslationalVelocity * 0.01,
+      velocity = franka::limitRate(franka::kMaxTranslationalVelocity * 0.015,
                                    franka::kMaxTranslationalAcceleration,
-                                   franka::kMaxTranslationalJerk * 0.1 * kFactor,
+                                   franka::kMaxTranslationalJerk * 0.05 * kFactor,
                                    franka::kMaxRotationalVelocity,
                                    franka::kMaxRotationalAcceleration,
                                    franka::kMaxRotationalJerk,
