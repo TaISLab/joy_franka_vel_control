@@ -60,7 +60,7 @@ namespace teleop_franka_joy
     ros::Subscriber joy_sub;
     ros::Publisher cmd_vel_pub;
 
-    double Delta_t = 0.001;  // Tiempo en segundo
+    double Delta_t = 0.001; // Tiempo en segundo
     float reaction_t = 0.5; // Tiempo en segundo de reaccion del operador
 
     double last_commanded_velocity;
@@ -196,7 +196,8 @@ namespace teleop_franka_joy
       array_filtered[i] = alpha * array[i] + (1 - alpha) * last_array[i];
 
       // Redondea las soluciones a 0
-      if (std::abs(array_filtered[i]) < (1e-8)){
+      if (std::abs(array_filtered[i]) < (1e-8))
+      {
         array_filtered[i] = 0.0;
       }
     }
@@ -296,6 +297,41 @@ namespace teleop_franka_joy
 
     // // ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     // // ROS_INFO("Espera de Delta_t completada.");
+
+    const std::array<double, 6> O_dP_EE_c = {{0.0,
+                                              0.0,
+                                              0.0,
+                                              getVal(joy_msg, axis_linear_map, "x"),
+                                              getVal(joy_msg, axis_linear_map, "y"),
+                                              getVal(joy_msg, axis_linear_map, "z")}};
+
+    // Aplico limitRate a la velocidad
+    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
+                                          franka::kMaxTranslationalAcceleration,
+                                          franka::kMaxTranslationalJerk * 0.1,
+                                          franka::kMaxRotationalVelocity,
+                                          franka::kMaxRotationalAcceleration,
+                                          franka::kMaxRotationalJerk * 0.1,
+                                          O_dP_EE_c,
+                                          last_O_dP_EE_c,
+                                          last_O_ddP_EE_c);
+
+    // Aplica el filtro de primer orden
+    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
+
+    // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
+    last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
+
+    // Almacena la velocidad como velocidad previa para el proximo ciclo
+    last_O_dP_EE_c = O_dP_EE_c_filtered;
+
+    // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
+
+    // Convertir Array en Twist
+    geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
+    cmd_vel_pub.publish(velocity_to_command);
+
+    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
   }
 
   void TeleopFrankaJoy::Impl::joyCallback(const sensor_msgs::Joy::ConstPtr &joy_msg)
@@ -321,7 +357,6 @@ namespace teleop_franka_joy
     else if (joy_msg->buttons[enable_mov_orientation]) // Boton izquierdo
     {
       ROS_INFO("Boton RB pulsado");
-
       sendCmdAngularVelMsg(joy_msg, axis_angular_map);
     }
     else
@@ -329,33 +364,33 @@ namespace teleop_franka_joy
 
       // deceleracion
       const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
-    // Aplico limitRate a la velocidad
-    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration,
-                                          franka::kMaxTranslationalJerk * 0.1,
-                                          franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration,
-                                          franka::kMaxRotationalJerk,
-                                          O_dP_EE_c,
-                                          last_O_dP_EE_c,
-                                          last_O_ddP_EE_c);
+      // Aplico limitRate a la velocidad
+      O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
+                                            franka::kMaxTranslationalAcceleration,
+                                            franka::kMaxTranslationalJerk * 0.1,
+                                            franka::kMaxRotationalVelocity,
+                                            franka::kMaxRotationalAcceleration,
+                                            franka::kMaxRotationalJerk * 0.1,
+                                            O_dP_EE_c,
+                                            last_O_dP_EE_c,
+                                            last_O_ddP_EE_c);
 
-    // Aplica el filtro de primer orden
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
+      // Aplica el filtro de primer orden
+      std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.4);
 
-    // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
-    last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
+      // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
+      last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
 
-    // Almacena la velocidad como velocidad previa para el proximo ciclo
-    last_O_dP_EE_c = O_dP_EE_c_filtered;
+      // Almacena la velocidad como velocidad previa para el proximo ciclo
+      last_O_dP_EE_c = O_dP_EE_c_filtered;
 
-    // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
+      // ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
 
-    // Convertir Array en Twist
-    geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
-    cmd_vel_pub.publish(velocity_to_command);
+      // Convertir Array en Twist
+      geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
+      cmd_vel_pub.publish(velocity_to_command);
 
-    ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
+      ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
     }
   }
 
