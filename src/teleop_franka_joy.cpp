@@ -68,7 +68,6 @@ namespace teleop_franka_joy
 
     std::array<double, 6> last_O_dP_EE_c;
     std::array<double, 6> last_O_ddP_EE_c;
-    double kFactor = 1;
 
     std::array<double, 6> velocity;
 
@@ -226,13 +225,11 @@ namespace teleop_franka_joy
     // double commanded_velocity = getVal(joy_msg, axis_linear_map, "x");
     // double commanded_velocity = 1;
 
-    const std::array<double, 6> O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x")*kFactor, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    const std::array<double, 6> O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"), 0.0, 0.0, 0.0, 0.0, 0.0}};
 
-    
-
-    velocity = franka::limitRate(franka::kMaxTranslationalVelocity*0.01,
+    velocity = franka::limitRate(franka::kMaxTranslationalVelocity, // limitacion de velocidad
                                  franka::kMaxTranslationalAcceleration,
-                                 franka::kMaxTranslationalJerk * 0.05 * kFactor,
+                                 franka::kMaxTranslationalJerk * 0.1,
                                  franka::kMaxRotationalVelocity,
                                  franka::kMaxRotationalAcceleration,
                                  franka::kMaxRotationalJerk,
@@ -240,14 +237,14 @@ namespace teleop_franka_joy
                                  last_O_dP_EE_c,
                                  last_O_ddP_EE_c);
 
-    double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.2);
+    double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.5);
 
     last_O_ddP_EE_c = {{(vel_vx_filter - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
-    last_O_dP_EE_c = {{velocity[0], 0.0, 0.0, 0.0, 0.0, 0.0}};
+    last_O_dP_EE_c = {{vel_vx_filter, 0.0, 0.0, 0.0, 0.0, 0.0}};
 
-    ROS_INFO("Vx_limitRate=%.6f", velocity[0]);
+    ROS_INFO("Vx_limitRate=%.6f", vel_vx_filter);
     geometry_msgs::Twist velocity_to_command;
-    velocity_to_command.linear.x = velocity[0];
+    velocity_to_command.linear.x = vel_vx_filter;
     cmd_vel_pub.publish(velocity_to_command);
     ros::Duration(Delta_t).sleep(); // Espera de Delta_t segundos
   }
@@ -311,7 +308,7 @@ namespace teleop_franka_joy
       const std::array<double, 6> O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
       velocity = franka::limitRate(franka::kMaxTranslationalVelocity * 0.015,
                                    franka::kMaxTranslationalAcceleration,
-                                   franka::kMaxTranslationalJerk * 0.05 * kFactor,
+                                   franka::kMaxTranslationalJerk * 0.05,
                                    franka::kMaxRotationalVelocity,
                                    franka::kMaxRotationalAcceleration,
                                    franka::kMaxRotationalJerk,
