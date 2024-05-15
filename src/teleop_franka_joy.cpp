@@ -313,7 +313,7 @@ namespace teleop_franka_joy
                                    last_O_dP_EE_c,
                                    last_O_ddP_EE_c);
 
-      double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.5);
+      double vel_vx_filter = firstOrderFilter(velocity[0], last_O_dP_EE_c[0], 0.7);
 
       last_O_ddP_EE_c = {{(vel_vx_filter - last_O_dP_EE_c[0]) / Delta_t, 0.0, 0.0, 0.0, 0.0, 0.0}};
       last_O_dP_EE_c = {{vel_vx_filter, 0.0, 0.0, 0.0, 0.0, 0.0}};
