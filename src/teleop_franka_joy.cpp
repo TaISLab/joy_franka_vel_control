@@ -193,11 +193,12 @@ namespace teleop_franka_joy
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden a la velocidad
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.8);
+    // std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.8);
 
 
     // Aplicar filtro de primer orden a la aceleración
-    std::array<double, 6> O_ddP_EE_c_filtered = firstOrderFilter(calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t), last_O_ddP_EE_c, 0.2);
+    std::array<double, 6> last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_limited, last_O_dP_EE_c, Delta_t);
+    std::array<double, 6> O_ddP_EE_c_filtered = firstOrderFilter(last_O_ddP_EE_c, last_O_ddP_EE_c, 0.2);
 
 
     // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
@@ -207,10 +208,10 @@ namespace teleop_franka_joy
 
 
     // Almacena la velocidad como velocidad previa para el proximo ciclo
-    last_O_dP_EE_c = O_dP_EE_c_filtered;
+    last_O_dP_EE_c = O_dP_EE_c_limited;
 
     // Convertir Array en Twist
-    geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_filtered);
+    geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_limited);
     printTwistInfo(velocity_to_command, "Velocidad publicada");
     cmd_vel_pub.publish(velocity_to_command);
 
