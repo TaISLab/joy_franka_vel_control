@@ -30,6 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/Twist.h>
 #include <franka/rate_limiting.h>
+#include <franka/lowpass_filter.h>
 
 #include "teleop_franka_joy/teleop_franka_joy.h"
 #include "sensor_msgs/Joy.h"
@@ -153,6 +154,23 @@ namespace teleop_franka_joy
     return array_filtered;
   }
 
+  std::array<double, 6> lowpassFilter_array(double Delta_t, const std::array<double, 6> array, const std::array<double, 6> last_array, double cutoff_frecuency)
+  {
+    std::array<double, 6> array_filtered;
+
+    for (int i = 0; i < 6; i++)
+    {
+      array_filtered[i] = franka::lowpassFilter(Delta_t, array[i], last_array[i], cutoff_frecuency);
+
+      // Redondea las soluciones a 0
+      if (std::abs(array_filtered[i]) < (1e-6))
+      {
+        array_filtered[i] = 0.0;
+      }
+    }
+    return array_filtered;
+  }
+
   std::array<double, 6> calculateAceleration(const std::array<double, 6> array, const std::array<double, 6> last_array, double Delta_t)
   {
     std::array<double, 6> array_aceleration;
@@ -193,7 +211,9 @@ namespace teleop_franka_joy
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden a la velocidad
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
+    //std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
+    double cutoff_frecuency = 100;
+    std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
 
     // Aplicar filtro de primer orden a la aceleración
     std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
