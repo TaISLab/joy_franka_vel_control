@@ -201,10 +201,10 @@ namespace teleop_franka_joy
   {
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 1, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration * 0.2,
+                                          franka::kMaxTranslationalAcceleration * 1,
                                           franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration * 0.2,
+                                          franka::kMaxRotationalAcceleration * 1,
                                           franka::kMaxRotationalJerk * 1,
                                           O_dP_EE_c,
                                           last_O_dP_EE_c,
@@ -212,7 +212,7 @@ namespace teleop_franka_joy
 
     // Aplica el filtro de primer orden a la velocidad
     //std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
-    double cutoff_frecuency = 100;
+    double cutoff_frecuency = 30;
     std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
 
     // Aplicar filtro de primer orden a la aceleración
