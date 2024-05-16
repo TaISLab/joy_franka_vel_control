@@ -145,7 +145,7 @@ namespace teleop_franka_joy
       array_filtered[i] = alpha * array[i] + (1 - alpha) * last_array[i];
 
       // Redondea las soluciones a 0
-      if (std::abs(array_filtered[i]) < (1e-8))
+      if (std::abs(array_filtered[i]) < (1e-6))
       {
         array_filtered[i] = 0.0;
       }
@@ -183,17 +183,17 @@ namespace teleop_franka_joy
   {
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 1, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration * 0.1,
+                                          franka::kMaxTranslationalAcceleration * 0.2,
                                           franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration * 0.1,
+                                          franka::kMaxRotationalAcceleration * 0.2,
                                           franka::kMaxRotationalJerk * 1,
                                           O_dP_EE_c,
                                           last_O_dP_EE_c,
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden a la velocidad
-    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.8);
+    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
 
     // Aplicar filtro de primer orden a la aceleración
     std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
@@ -245,13 +245,13 @@ namespace teleop_franka_joy
       O_dP_EE_c = {{0.0,
                     0.0,
                     0.0,
-                    getVal(joy_msg, axis_linear_map, "x"),
-                    getVal(joy_msg, axis_linear_map, "y"),
-                    getVal(joy_msg, axis_linear_map, "z")}};
+                    getVal(joy_msg, axis_angular_map, "x"),
+                    getVal(joy_msg, axis_angular_map, "y"),
+                    getVal(joy_msg, axis_angular_map, "z")}};
     }
     else
     { // Si no se toca LB o RB -> Decelera
-      alpha_first_order = 0.7;
+      alpha_first_order = 0.8;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     }
 
