@@ -186,7 +186,7 @@ namespace teleop_franka_joy
                                           franka::kMaxTranslationalAcceleration * 0.1,
                                           franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration * 0.5,
+                                          franka::kMaxRotationalAcceleration * 0.1,
                                           franka::kMaxRotationalJerk * 1,
                                           O_dP_EE_c,
                                           last_O_dP_EE_c,
@@ -195,18 +195,11 @@ namespace teleop_franka_joy
     // Aplica el filtro de primer orden a la velocidad
     std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.8);
 
-
     // Aplicar filtro de primer orden a la aceleración
-    std::array<double, 6> O_ddP_EE_c_filtered = firstOrderFilter(calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t), last_O_ddP_EE_c, 0.2);
+    std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
 
-
-    // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
-    last_O_ddP_EE_c = O_ddP_EE_c_filtered;
-
-    // Aplicar el filtro de primer orden en la aceleracion
-
-
-    // Almacena la velocidad como velocidad previa para el proximo ciclo
+    // Prepara siguiente ciclo
+    last_O_ddP_EE_c = O_ddP_EE_c;
     last_O_dP_EE_c = O_dP_EE_c_filtered;
 
     // Convertir Array en Twist
