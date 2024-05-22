@@ -17,7 +17,3 @@ enable_mov_position: 4
 enable_mov_orientation: 5
 orientation_button: 9
 home_button: 8
-
-# Velocidad maxima
-linear_max_vel: 12.5
-angular_max_vel: 50

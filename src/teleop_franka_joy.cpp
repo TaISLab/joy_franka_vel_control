@@ -30,6 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/Twist.h>
 #include <franka/rate_limiting.h>
+#include <franka/lowpass_filter.h>
 
 #include "teleop_franka_joy/teleop_franka_joy.h"
 #include "sensor_msgs/Joy.h"
@@ -145,7 +146,24 @@ namespace teleop_franka_joy
       array_filtered[i] = alpha * array[i] + (1 - alpha) * last_array[i];
 
       // Redondea las soluciones a 0
-      if (std::abs(array_filtered[i]) < (1e-8))
+      if (std::abs(array_filtered[i]) < (1e-6))
+      {
+        array_filtered[i] = 0.0;
+      }
+    }
+    return array_filtered;
+  }
+
+  std::array<double, 6> lowpassFilter_array(double Delta_t, const std::array<double, 6> array, const std::array<double, 6> last_array, double cutoff_frecuency)
+  {
+    std::array<double, 6> array_filtered;
+
+    for (int i = 0; i < 6; i++)
+    {
+      array_filtered[i] = franka::lowpassFilter(Delta_t, array[i], last_array[i], cutoff_frecuency);
+
+      // Redondea las soluciones a 0
+      if (std::abs(array_filtered[i]) < (1e-6))
       {
         array_filtered[i] = 0.0;
       }
@@ -183,32 +201,26 @@ namespace teleop_franka_joy
   {
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 1, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration * 0.1,
+                                          franka::kMaxTranslationalAcceleration * 1,
                                           franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
-                                          franka::kMaxRotationalAcceleration * 0.5,
+                                          franka::kMaxRotationalAcceleration * 1,
                                           franka::kMaxRotationalJerk * 1,
                                           O_dP_EE_c,
                                           last_O_dP_EE_c,
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden a la velocidad
-    // std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, 0.8);
-
+    //std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
+    double cutoff_frecuency = 30;
+    std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
 
     // Aplicar filtro de primer orden a la aceleración
-    std::array<double, 6> last_O_ddP_EE_c = calculateAceleration(O_dP_EE_c_limited, last_O_dP_EE_c, Delta_t);
-    std::array<double, 6> O_ddP_EE_c_filtered = firstOrderFilter(last_O_ddP_EE_c, last_O_ddP_EE_c, 0.2);
+    std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
 
-
-    // Calcula aceleracion: (O_dP_EE_c[i]-last_O_dP_EE_c[i])/Delta_t
-    last_O_ddP_EE_c = O_ddP_EE_c_filtered;
-
-    // Aplicar el filtro de primer orden en la aceleracion
-
-
-    // Almacena la velocidad como velocidad previa para el proximo ciclo
-    last_O_dP_EE_c = O_dP_EE_c_limited;
+    // Prepara siguiente ciclo
+    last_O_ddP_EE_c = O_ddP_EE_c;
+    last_O_dP_EE_c = O_dP_EE_c_filtered;
 
     // Convertir Array en Twist
     geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_limited);
@@ -253,13 +265,13 @@ namespace teleop_franka_joy
       O_dP_EE_c = {{0.0,
                     0.0,
                     0.0,
-                    getVal(joy_msg, axis_linear_map, "x"),
-                    getVal(joy_msg, axis_linear_map, "y"),
-                    getVal(joy_msg, axis_linear_map, "z")}};
+                    getVal(joy_msg, axis_angular_map, "x"),
+                    getVal(joy_msg, axis_angular_map, "y"),
+                    getVal(joy_msg, axis_angular_map, "z")}};
     }
     else
     { // Si no se toca LB o RB -> Decelera
-      alpha_first_order = 0.7;
+      alpha_first_order = 0.8;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     }
 
