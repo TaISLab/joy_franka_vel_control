@@ -211,9 +211,9 @@ namespace teleop_franka_joy
                                           last_O_ddP_EE_c);
 
     // Aplica el filtro de primer orden a la velocidad
-    //std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
-    double cutoff_frecuency = 30;
-    std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
+    std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
+    //double cutoff_frecuency = 30;
+    // std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
 
     // Aplicar filtro de primer orden a la aceleración
     std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
@@ -271,7 +271,7 @@ namespace teleop_franka_joy
     }
     else
     { // Si no se toca LB o RB -> Decelera
-      alpha_first_order = 0.8;
+      alpha_first_order = 0.5;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     }
 
