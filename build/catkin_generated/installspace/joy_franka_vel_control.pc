@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: joy_franka_vel_control
+Description: Description of joy_franka_vel_control
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib -ljoy_franka_vel_control
+Requires: geometry_msgs roscpp sensor_msgs

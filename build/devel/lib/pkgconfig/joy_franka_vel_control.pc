@@ -1,0 +1,8 @@
+prefix=/home/rodri/workspace/rafi_ws/src/joy_franka_vel_control/build/devel
+
+Name: joy_franka_vel_control
+Description: Description of joy_franka_vel_control
+Version: 0.0.0
+Cflags: -I/home/rodri/workspace/rafi_ws/src/joy_franka_vel_control/include
+Libs: -L${prefix}/lib -ljoy_franka_vel_control
+Requires: geometry_msgs roscpp sensor_msgs

@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/rodri/workspace/rafi_ws/src/joy_franka_vel_control/build/devel/setup.sh
