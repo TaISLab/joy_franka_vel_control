@@ -249,7 +249,7 @@ namespace teleop_franka_joy
     {
       // Velocidad lineal
       ROS_INFO("Boton LB pulsado");
-      alpha_first_order = 0.7;
+      alpha_first_order = 0.8;
       O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"),
                     getVal(joy_msg, axis_linear_map, "y"),
                     getVal(joy_msg, axis_linear_map, "z"),
@@ -261,7 +261,7 @@ namespace teleop_franka_joy
     {
       // Velocidad angular
       ROS_INFO("Boton RB pulsado");
-      alpha_first_order = 0.7;
+      alpha_first_order = 0.8;
       O_dP_EE_c = {{0.0,
                     0.0,
                     0.0,
@@ -271,7 +271,7 @@ namespace teleop_franka_joy
     }
     else
     { // Si no se toca LB o RB -> Decelera
-      alpha_first_order = 0.7;
+      alpha_first_order = 0.8;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     }
 
