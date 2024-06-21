@@ -201,7 +201,7 @@ namespace teleop_franka_joy
   {
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 0.1, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration * 0.25,
+                                          franka::kMaxTranslationalAcceleration * 0.1,
                                           franka::kMaxTranslationalJerk * 0.1,
                                           franka::kMaxRotationalVelocity * 0.1,
                                           franka::kMaxRotationalAcceleration * 0.1,
@@ -249,7 +249,7 @@ namespace teleop_franka_joy
     {
       // Velocidad lineal
       ROS_INFO("Boton LB pulsado");
-      alpha_first_order = 0.75;
+      alpha_first_order = 1;
       O_dP_EE_c = {{getVal(joy_msg, axis_linear_map, "x"),
                     getVal(joy_msg, axis_linear_map, "y"),
                     getVal(joy_msg, axis_linear_map, "z"),
@@ -261,7 +261,7 @@ namespace teleop_franka_joy
     {
       // Velocidad angular
       ROS_INFO("Boton RB pulsado");
-      alpha_first_order = 0.75;
+      alpha_first_order = 1;
       O_dP_EE_c = {{0.0,
                     0.0,
                     0.0,
@@ -271,7 +271,7 @@ namespace teleop_franka_joy
     }
     else
     { // Si no se toca LB o RB -> Decelera
-      alpha_first_order = 0.75;
+      alpha_first_order = 1;
       O_dP_EE_c = {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
     }
 
