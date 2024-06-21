@@ -200,7 +200,7 @@ namespace teleop_franka_joy
   void TeleopFrankaJoy::Impl::sendCmdVel()
   {
     // Aplico limitRate a la velocidad
-    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 1, // limitacion de velocidad
+    O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 0.1, // limitacion de velocidad
                                           franka::kMaxTranslationalAcceleration * 1,
                                           franka::kMaxTranslationalJerk * 1,
                                           franka::kMaxRotationalVelocity,
