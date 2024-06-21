@@ -201,7 +201,7 @@ namespace teleop_franka_joy
   {
     // Aplico limitRate a la velocidad
     O_dP_EE_c_limited = franka::limitRate(franka::kMaxTranslationalVelocity * 0.1, // limitacion de velocidad
-                                          franka::kMaxTranslationalAcceleration * 0.1,
+                                          franka::kMaxTranslationalAcceleration * 1,
                                           franka::kMaxTranslationalJerk * 0.1,
                                           franka::kMaxRotationalVelocity * 0.1,
                                           franka::kMaxRotationalAcceleration * 0.1,
