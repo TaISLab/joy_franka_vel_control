@@ -86,7 +86,7 @@ namespace teleop_franka_joy
   {
     pimpl_ = new Impl;
 
-    pimpl_->cmd_vel_pub = nh->advertise<geometry_msgs::Twist>("/cmd_vel", 1, true);                           // Se crea el publicador ROS
+    pimpl_->cmd_vel_pub = nh->advertise<geometry_msgs::Twist>("/cmd_franka_vel", 1, true);                           // Se crea el publicador ROS
     pimpl_->joy_sub = nh->subscribe<sensor_msgs::Joy>("joy", 1, &TeleopFrankaJoy::Impl::joyCallback, pimpl_); // Cuando se recibe un mensaje llama a la función callback.
 
     // Asignar botones
