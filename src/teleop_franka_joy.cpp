@@ -1,25 +1,16 @@
-/**
-Software License Agreement (BSD)
+/*
 
-\authors   Mike Purvis <mpurvis@clearpathrobotics.com>
-\copyright Copyright (c) 2014, Clearpath Robotics, Inc., All rights reserved.
+ROS Package: joy_franka_vel_control
+File: teleop_franka_joy.cpp
+Author: Rodrigo Castro Ochoa, rcastro@uma.es, University of Málaga.
 
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that
-the following conditions are met:
- * Redistributions of source code must retain the above copyright notice, this list of conditions and the
-   following disclaimer.
- * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
-   following disclaimer in the documentation and/or other materials provided with the distribution.
- * Neither the name of Clearpath Robotics nor the names of its contributors may be used to endorse or promote
-   products derived from this software without specific prior written permission.
+Description:
+Teleoperation of the cartesian velocity controller for the Franka Emika Panda manipulator using a joystick. 
+This node subscribes to the topic /Joy and publishes a Twist message in the topic /cmd_franka_vel.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WAR-
-RANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, IN-
-DIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Credits:
+This code is based on the teleop_twist_joy project, available at: http://wiki.ros.org/teleop_twist_joy
+
 */
 
 #include "ros/ros.h"
@@ -116,8 +107,7 @@ namespace teleop_franka_joy
   double getVal(const sensor_msgs::Joy::ConstPtr &joy_msg, const std::map<std::string, int> &axis_map, const std::string &fieldname)
   {
     /*
-    Método que obtiene valores especificos del mensaje del joystick:
-    Argumentos:
+    Funcion que obtiene valores especificos del mensaje del joystick:
       - joy_msg: mensaje joy del cual se va a obtener la informacion
       - axis_map: mapa de ejes de control
       - fieldname: campo que se quiere obtener [x,y,z] o [x,y,z,w]
@@ -212,15 +202,13 @@ namespace teleop_franka_joy
 
     // Aplica el filtro de primer orden a la velocidad
     std::array<double, 6> O_dP_EE_c_filtered = firstOrderFilter(O_dP_EE_c_limited, last_O_dP_EE_c, alpha_first_order);
-    //double cutoff_frecuency = 30;
-    // std::array<double, 6> O_dP_EE_c_filtered = lowpassFilter_array(Delta_t, O_dP_EE_c_limited, last_O_dP_EE_c, cutoff_frecuency);
 
-    // Aplicar filtro de primer orden a la aceleración
-    std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_filtered, last_O_dP_EE_c, Delta_t);
+    // Calcular aceleración
+    std::array<double, 6> O_ddP_EE_c = calculateAceleration(O_dP_EE_c_limited, last_O_dP_EE_c, Delta_t);
 
     // Prepara siguiente ciclo
     last_O_ddP_EE_c = O_ddP_EE_c;
-    last_O_dP_EE_c = O_dP_EE_c_filtered;
+    last_O_dP_EE_c = O_dP_EE_c_limited;
 
     // Convertir Array en Twist
     geometry_msgs::Twist velocity_to_command = array6toTwist(O_dP_EE_c_limited);
@@ -232,19 +220,7 @@ namespace teleop_franka_joy
 
   void TeleopFrankaJoy::Impl::joyCallback(const sensor_msgs::Joy::ConstPtr &joy_msg)
   {
-    /*
-    {Si no se necesitan condiciones especiales para la deceleración}
-    Cambiar if para que:
-      - Al pulsar LB: O_dP_EE_c usa getval(axis_linear_map)
-      - Al pulsar RB: O_dP_EE_c usa getval(axis_angular_map)
-      - Al no pulsar nada: 0_dP_EE_c es 0.0
 
-    Fuera del if ya se hace todo el código que calcula la velocity_to_command y la publica.
-
-    {Si hicieran falta un alpha distinto en la aceleración y la deceleración}
-      - [A] Variar el alpha global en cada uno de los casos del if
-      - [B] Calculo de alpha dinamico
-    */
     if (joy_msg->buttons[enable_mov_position]) // Boton derecho
     {
       // Velocidad lineal
